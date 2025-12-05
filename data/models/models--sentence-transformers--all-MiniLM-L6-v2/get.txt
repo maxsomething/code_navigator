@@ -1,1 +1,50 @@
+GETTING THE SENTENCE TRANSFORMER MODEL
 
+Code_Navigator uses the sentence-transformers library (specifically the "all-MiniLM-L6-v2" model) to create vector embeddings of your code for the AI context system.
+
+There are two ways to get this model:
+
+METHOD 1: AUTOMATIC (Recommended)
+
+You do not need to do anything manually.
+
+Ensure you have an internet connection.
+
+Run the application:
+python main.py
+
+On the first launch, the application will automatically detect that the model is missing.
+
+It will download the necessary files (approx. 90MB - 120MB) from Hugging Face.
+
+The model will be saved to:
+./data/models/
+
+Future runs will use this cached version offline.
+
+METHOD 2: MANUAL / AIR-GAPPED
+
+If you need to install this on a machine without internet access, you must clone the model manually on a connected machine and transfer it.
+
+On a machine with Git LFS (Large File Storage) installed:
+
+git lfs install
+git clone https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2
+
+This will create a folder named all-MiniLM-L6-v2.
+
+Move this folder into your project directory at this specific path:
+
+code_navigator/data/models/sentence-transformers_all-MiniLM-L6-v2/
+
+(Note: The folder naming convention is important if you want the library to find it automatically without modification, though usually, the automatic method is far less error-prone).
+
+TROUBLESHOOTING
+
+If the download hangs or fails:
+
+Delete the data/models folder to clear partial downloads.
+
+Check your internet connection.
+
+Run main.py again.
