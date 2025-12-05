@@ -14,6 +14,7 @@ class Config:
     
     # --- Storage ---
     GRAPHS_DIR = DATA_DIR / "graphs" 
+    VECTOR_DIR = DATA_DIR / "vector_store"
     OUTPUTS_DIR = DATA_DIR / "outputs"
     LOG_DIR = DATA_DIR / "logs"
     
