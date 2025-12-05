@@ -1,0 +1,22 @@
+# Ignore python artifacts
+__pycache__/
+*.py[cod]
+.venv/
+
+# Ignore legacy folders
+assets/
+lib/
+
+# Ignore generated data but keep the structure
+data/graphs/*
+data/vector_store/*
+data/logs/*
+data/outputs/*
+data/cache/*
+
+# Optional: Ignore downloaded models and user state
+data/models/*
+data/app_state.json
+
+# Keep the data directories themselves (optional, usually people utilize .gitkeep)
+!data/**/.gitkeep
