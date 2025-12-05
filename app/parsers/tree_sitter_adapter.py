@@ -75,14 +75,17 @@ class PolyglotParser(BaseParser):
         self._queries = {
             'c': {
                 'import': """(preproc_include path: (_) @import)""",
-                'def': """(function_definition declarator: (function_declarator declarator: (identifier) @name) body: (_) @body) @def""",
+                # Catch-all for function definitions by grabbing the whole declarator
+                'def': """(function_definition declarator: (_) @name_capture) @def""",
                 'call': """(call_expression function: (identifier) @call_name)"""
             },
             'cpp': {
                 'import': """(preproc_include path: (_) @import)""",
+                # Robust C++ capture: Grabs complex declarators (pointers, refs, qualified names)
                 'def': """
-                    (function_definition declarator: (function_declarator declarator: (identifier) @name) body: (_) @body) @def
-                    (class_specifier name: (type_identifier) @name) @def
+                    (function_definition declarator: (_) @name_capture) @def
+                    (class_specifier name: (_) @name_capture) @def
+                    (struct_specifier name: (_) @name_capture) @def
                 """,
                 'call': """(call_expression function: (identifier) @call_name)"""
             },
@@ -92,24 +95,25 @@ class PolyglotParser(BaseParser):
                     (import_from_statement module_name: (dotted_name) @import)
                 """,
                 'def': """
-                    (function_definition name: (identifier) @name body: (_) @body) @def
-                    (class_definition name: (identifier) @name body: (_) @body) @def
+                    (function_definition name: (identifier) @name_capture) @def
+                    (class_definition name: (identifier) @name_capture) @def
                 """,
                 'call': """(call function: (identifier) @call_name)"""
             },
             'java': {
                 'import': """(import_declaration) @import""",
                 'def': """
-                    (method_declaration name: (identifier) @name body: (_) @body) @def
-                    (class_declaration name: (identifier) @name body: (_) @body) @def
+                    (method_declaration name: (identifier) @name_capture) @def
+                    (class_declaration name: (identifier) @name_capture) @def
                 """,
                 'call': """(method_invocation name: (identifier) @call_name)"""
             },
             'javascript': {
                 'import': """(import_statement source: (string) @import)""",
                 'def': """
-                    (function_declaration name: (identifier) @name body: (_) @body) @def
-                    (class_declaration name: (identifier) @name body: (_) @body) @def
+                    (function_declaration name: (identifier) @name_capture) @def
+                    (class_declaration name: (identifier) @name_capture) @def
+                    (method_definition key: (_) @name_capture) @def
                 """,
                 'call': """(call_expression function: (identifier) @call_name)"""
             }
@@ -197,7 +201,7 @@ class PolyglotParser(BaseParser):
             # Clean imports
             clean_imports = []
             for imp in imports:
-                i = imp.replace('import ', '').replace(';', '').replace('"', '').replace("'", "")
+                i = imp.replace('import ', '').replace(';', '').replace('"', '').replace("'", "").replace('#include', '')
                 clean_imports.append(i.strip())
 
             definitions = []
@@ -210,34 +214,43 @@ class PolyglotParser(BaseParser):
                     q_def = Query(lang_obj, def_query_str)
                     captures = self._get_captures(q_def, tree.root_node)
                     
-                    processed_nodes = set()
+                    # Logic: Identify definition blocks, then find the specific name within that block
                     
+                    # 1. Identify unique definition blocks
+                    def_nodes = []
                     for node, name in captures:
-                        if name == 'def' and node.id not in processed_nodes:
-                            processed_nodes.add(node.id)
+                        if name == 'def': 
+                            def_nodes.append(node)
+                    
+                    # 2. For each block, extract details
+                    for def_node in def_nodes:
+                        def_text = def_node.text.decode('utf8', errors='replace')
+                        def_name = "unknown"
+                        
+                        # Attempt to find the @name_capture within this node's range
+                        for sub_n, sub_name in captures:
+                            if sub_name == 'name_capture' and sub_n.start_byte >= def_node.start_byte and sub_n.end_byte <= def_node.end_byte:
+                                def_name = sub_n.text.decode('utf8', errors='replace')
+                                break
+                        
+                        # Fallback: if tree-sitter didn't capture the name node cleanly, use the first line of the block
+                        if def_name == "unknown":
+                            first_line = def_text.split('\n')[0].strip()
+                            def_name = first_line.split('(')[0].strip()[-40:] # Heuristic guess
                             
-                            def_text = node.text.decode('utf8')
-                            def_name = "unknown"
-                            
-                            # Attempt to find the @name capture within this node's range
-                            for sub_n, sub_name in captures:
-                                if sub_name == 'name' and sub_n.start_byte >= node.start_byte and sub_n.end_byte <= node.end_byte:
-                                    def_name = sub_n.text.decode('utf8')
-                                    break
-                            
-                            calls = []
-                            if call_query_str:
-                                calls = self._run_query(lang_obj, call_query_str, node, capture_name="call_name")
-                                calls = list(set(calls))
+                        calls = []
+                        if call_query_str:
+                            calls = self._run_query(lang_obj, call_query_str, def_node, capture_name="call_name")
+                            calls = list(set(calls))
 
-                            definitions.append(Definition(
-                                name=def_name,
-                                type='function', 
-                                start_byte=node.start_byte,
-                                end_byte=node.end_byte,
-                                content=def_text,
-                                calls=calls
-                            ))
+                        definitions.append(Definition(
+                            name=def_name,
+                            type='function', 
+                            start_byte=def_node.start_byte,
+                            end_byte=def_node.end_byte,
+                            content=def_text,
+                            calls=calls
+                        ))
 
             return ParseResult(file_path, lang_id, definitions=definitions, imports=clean_imports, content=content_str)
         

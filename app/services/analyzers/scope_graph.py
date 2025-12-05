@@ -90,15 +90,18 @@ class ScopeGraphBuilder:
                 
                 # Clean signature for display (first line, html safe)
                 raw_sig = d.content.split('\n')[0].strip().rstrip('{').strip()
-                safe_sig = raw_sig.replace('<', '&lt;').replace('>', '&gt;')
+                # Escape for HTML
+                safe_sig = raw_sig.replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
                 
                 if len(safe_sig) > 60: safe_sig = safe_sig[:57] + "..."
                 
                 # Visual hints for type
                 type_style = "color:#e06c75; font-weight:bold;" if d.type == 'function' else "color:#e5c07b; font-weight:bold;"
+                
+                # Use standard double quotes for HTML attributes
                 tooltip_rows.append(
-                    f"<tr><td style='{type_style} padding-right:8px;'>{d.type[0].upper()}</td>"
-                    f"<td style='font-family:monospace; color:#ccc;'>{safe_sig}</td></tr>"
+                    f"<tr><td style=\"{type_style} padding-right:8px;\">&#9679;</td>"
+                    f"<td style=\"font-family:monospace; color:#ccc;\">{safe_sig}</td></tr>"
                 )
 
                 # Add Definition Node (For Full Graph)
@@ -121,15 +124,15 @@ class ScopeGraphBuilder:
                 # Limit to first 20 items to prevent screen overflow
                 display_rows = tooltip_rows[:20]
                 if len(tooltip_rows) > 20:
-                    display_rows.append("<tr><td colspan='2'><i>...and more...</i></td></tr>")
+                    display_rows.append("<tr><td colspan=\"2\"><i>...and more...</i></td></tr>")
                 
-                table_html = "<table style='border-spacing:0; font-size:11px;'>" + "".join(display_rows) + "</table>"
-                header = f"<div style='font-weight:bold; border-bottom:1px solid #555; margin-bottom:4px; font-size:12px;'>{os.path.basename(file_path)}</div>"
+                table_html = "<table style=\"border-spacing:0; font-size:11px;\">" + "".join(display_rows) + "</table>"
+                header = f"<div style=\"font-weight:bold; border-bottom:1px solid #555; margin-bottom:4px; font-size:12px;\">{os.path.basename(file_path)}</div>"
                 
-                # This 'title' attribute is what Vis.js displays on hover
-                scope_graph.nodes[file_path]['title'] = f"<div style='text-align:left;'>{header}{table_html}</div>"
+                # This 'title' attribute is what Vis.js displays on hover via our custom renderer
+                scope_graph.nodes[file_path]['title'] = f"<div style=\"text-align:left;\">{header}{table_html}</div>"
             else:
-                scope_graph.nodes[file_path]['title'] = f"<b>{os.path.basename(file_path)}</b><br><i style='font-size:10px; color:#888'>No structures found</i>"
+                scope_graph.nodes[file_path]['title'] = f"<b>{os.path.basename(file_path)}</b><br><i style=\"font-size:10px; color:#888\">No structures found</i>"
 
         # 7. Rebuild Call Edges (Def -> Def)
         if callback: callback(3, len(files_in_scope), "Linking function calls...")

@@ -174,7 +174,7 @@ To add files to scope, output: `<<SCOPE_ACTION: {{"action": "add", "files": ["fi
 
 Answer the user query based on the context.
 """
-        timeout_sec = 120
+        timeout_sec = 500
         try:
             payload = {
                 "model": self.model,

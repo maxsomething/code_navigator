@@ -25,7 +25,8 @@ class Config:
     
     # --- AI Settings ---
     OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
-    MODEL_CHAT = os.getenv("OLLAMA_MODEL_CHAT", "mistral")
+    # --- MODIFIED: Changed the default model to deepseek-coder-v2:lite ---
+    MODEL_CHAT = os.getenv("OLLAMA_MODEL_CHAT", "deepseek-coder-v2:lite") 
     EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME", "all-MiniLM-L6-v2")
     
     # --- Performance & Limits ---
@@ -54,10 +55,11 @@ class Config:
 
     try:
         OLLAMA_NUM_GPU = int(os.getenv("OLLAMA_NUM_GPU", "0"))
-        OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "4096"))
+        # --- MODIFIED: Increased default context size to leverage the model's capabilities ---
+        OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "32768")) 
     except ValueError:
         OLLAMA_NUM_GPU = 0
-        OLLAMA_NUM_CTX = 4096
+        OLLAMA_NUM_CTX = 32768
 
     @classmethod
     def ensure_dirs(cls):

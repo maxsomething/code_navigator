@@ -11,7 +11,7 @@ from PyQt6.QtWebChannel import QWebChannel
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot, Qt, QTimer
 from PyQt6.QtGui import QAction, QCursor
 
-# Import the template from the new file
+# Import the template
 from .graph_template import GRAPH_HTML_TEMPLATE
 
 # --- Constants ---
@@ -97,31 +97,20 @@ class GraphWidget(QWidget):
         self._is_page_loaded = True
         if ok and self._pending_chunk_load:
             self._pending_chunk_load = False
-            
-            total_nodes = len(self.sorted_nodes_for_loading)
-            current_nodes = len(self.displayed_nodes)
-            self.web_view.page().runJavaScript(f"window.updateLoadingProgress({current_nodes}, {total_nodes});")
-
+            total = len(self.sorted_nodes_for_loading)
+            current = len(self.displayed_nodes)
+            self.web_view.page().runJavaScript(f"window.updateLoadingProgress({current}, {total});")
             QTimer.singleShot(50, self._load_next_chunk)
 
-     # --- MODIFIED: Implemented robust Base64 image embedding ---
     def render_static_image(self, image_path: str, title="Static Graph"):
-        """
-        Displays a pre-rendered static image by embedding it directly into the HTML
-        as a Base64 data URI. This is highly robust and avoids file path issues.
-        """
         self._is_static_mode = True
         self.set_controls_enabled(False)
 
         try:
-            # Read the image file in binary mode
             with open(image_path, "rb") as image_file:
-                # Encode the binary data to a Base64 string
                 encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
             
-            # Create the data URI for embedding
             image_uri = f"data:image/png;base64,{encoded_string}"
-
             html = f"""
             <!DOCTYPE html>
             <html>
@@ -133,9 +122,7 @@ class GraphWidget(QWidget):
                         display: flex; align-items: center; justify-content: center;
                         font-family: sans-serif; overflow: hidden;
                     }}
-                    img {{ 
-                        width: 100%; height: 100%; object-fit: contain; 
-                    }}
+                    img {{ width: 100%; height: 100%; object-fit: contain; }}
                     .watermark {{
                         position: absolute; top: 10px; left: 10px; color: rgba(255,255,255,0.8);
                         background: rgba(0,0,0,0.6); padding: 5px 10px; border-radius: 5px;
@@ -152,12 +139,10 @@ class GraphWidget(QWidget):
             self.web_view.setHtml(html)
 
         except Exception as e:
-            self.logger.error(f"Failed to load and embed static image {image_path}: {e}")
-            # Display an error message in the web view
-            self.web_view.setHtml(f"<html><body style='background:#282c34; color:red; text-align:center;'><h3>Error loading image:</h3><p>{e}</p></body></html>")
+            self.logger.error(f"Failed to load static image: {e}")
+            self.web_view.setHtml(f"<h3>Error loading image:</h3><p>{e}</p>")
 
     def set_controls_enabled(self, enabled: bool):
-        """Enables or disables the interactive graph controls."""
         self.combo_mode.setEnabled(enabled)
         self.chk_full.setEnabled(enabled)
         self.slider_expand.setEnabled(enabled)
@@ -175,7 +160,6 @@ class GraphWidget(QWidget):
         self._pending_chunk_load = False
 
         self._render_html(None, title)
-
         QTimer.singleShot(0, self._prepare_and_render_deferred)
 
     def _prepare_and_render_deferred(self):
@@ -183,7 +167,7 @@ class GraphWidget(QWidget):
         title = self.cached_title
 
         if not nx_graph or nx_graph.number_of_nodes() == 0:
-            self.web_view.setHtml("<html><body style='background:#282c34;color:#888; font-family: sans-serif; text-align: center; padding-top: 20px;'><h3>No Graph Data</h3></body></html>")
+            self.web_view.setHtml("<html><body style='background:#282c34;color:#888;'><h3>No Graph Data</h3></body></html>")
             return
 
         is_full_mode = self.chk_full.isChecked()
@@ -205,25 +189,21 @@ class GraphWidget(QWidget):
             final_title += " (Overview)" if not is_full_mode else " (Full)"
 
         subgraph = nx_graph.subgraph(initial_nodes).copy()
-        
         self._render_html(subgraph, final_title)
 
     def _load_next_chunk(self):
         try:
-            if not self.cached_graph or not self.sorted_nodes_for_loading or not self._is_page_loaded:
-                return
+            if not self.cached_graph or not self.sorted_nodes_for_loading or not self._is_page_loaded: return
 
-            start_index = len(self.displayed_nodes)
-            end_index = start_index + CHUNK_LOAD_SIZE
-            new_node_ids = self.sorted_nodes_for_loading[start_index:end_index]
+            start = len(self.displayed_nodes)
+            end = start + CHUNK_LOAD_SIZE
+            new_ids = self.sorted_nodes_for_loading[start:end]
 
-            if not new_node_ids:
-                return
+            if not new_ids: return
 
-            new_subgraph = self.cached_graph.subgraph(new_node_ids)
-            
+            new_subgraph = self.cached_graph.subgraph(new_ids)
             connecting_edges = []
-            for u, v, data in self.cached_graph.edges(new_node_ids, data=True):
+            for u, v, data in self.cached_graph.edges(new_ids, data=True):
                 if u in self.displayed_nodes or v in self.displayed_nodes:
                     connecting_edges.append((u, v, data))
             
@@ -235,22 +215,18 @@ class GraphWidget(QWidget):
             edges_json = json.dumps(list(new_edges_data), default=self._default_serializer)
 
             self.web_view.page().runJavaScript(f"addDataToGraph({nodes_json}, {edges_json});")
+            self.displayed_nodes.update(new_ids)
             
-            self.displayed_nodes.update(new_node_ids)
-            
-            total_nodes = len(self.sorted_nodes_for_loading)
-            current_nodes = len(self.displayed_nodes)
-            self.web_view.page().runJavaScript(f"window.updateLoadingProgress({current_nodes}, {total_nodes});")
+            total = len(self.sorted_nodes_for_loading)
+            current = len(self.displayed_nodes)
+            self.web_view.page().runJavaScript(f"window.updateLoadingProgress({current}, {total});")
 
             if len(self.displayed_nodes) < len(self.sorted_nodes_for_loading):
                 QTimer.singleShot(0, self._load_next_chunk)
             else:
                 self.web_view.page().runJavaScript("window.hideLoadingIndicator();")
         except Exception as e:
-            logging.error("Failed during graph chunk loading.", exc_info=True)
-            error_msg = f"Error during chunk loading: {str(e)}".replace('"', "'").replace("\n", " ")
-            self.web_view.page().runJavaScript(f'window.showError("{error_msg}");')
-
+            self.logger.error("Chunk load error", exc_info=True)
 
     def _render_html(self, graph, title):
         if graph is None:
@@ -268,14 +244,20 @@ class GraphWidget(QWidget):
             html = self._get_html_template(title, nodes_json, edges_json, is_massive, self._pending_chunk_load)
             self.web_view.setHtml(html)
         except Exception as e:
-            self.web_view.setHtml(f"<html><body style='background:#222;color:red;'><h3>Error: {e}</h3></body></html>")
+            self.web_view.setHtml(f"Error: {e}")
 
     def _format_nodes(self, graph):
+        # Generates the JSON object for Vis.js
         return (
             {
-                "id": str(n), "label": str(attr.get("label", os.path.basename(str(n)))),
-                "group": attr.get("group", "Default"), "title": str(attr.get("title", n)),
-                "value": attr.get("size", 15), "mass": attr.get("mass", 1),
+                "id": str(n), 
+                "label": str(attr.get("label", os.path.basename(str(n)))),
+                "group": attr.get("group", "Default"), 
+                # CRITICAL: We pass the 'title' attribute directly. 
+                # 'title' is the tooltip content. If it contains HTML, Vis.js renders it.
+                "title": attr.get("title", str(n)), 
+                "value": attr.get("size", 15), 
+                "mass": attr.get("mass", 1),
                 "font": {"color": "white", "strokeWidth": 0}
             }
             for n, attr in graph.nodes(data=True)
@@ -283,8 +265,8 @@ class GraphWidget(QWidget):
 
     def _format_edges(self, edges):
         return (
-            {"from": str(u), "to": str(v), "arrows": "to"} 
-            for u, v, _ in edges
+            {"from": str(u), "to": str(v), "arrows": "to", "color": {"color": d.get("color", "#666"), "opacity": 0.5}, "dashes": d.get("style") == "dashed"} 
+            for u, v, d in edges
         )
 
     def _default_serializer(self, obj):
