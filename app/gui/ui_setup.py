@@ -1,6 +1,7 @@
 from pathlib import Path
 from PyQt6.QtWidgets import (QDockWidget, QTextEdit, QListWidget, QProgressBar, 
-                             QLabel, QTreeView, QToolBar, QStyle, QAbstractItemView, QApplication)
+                             QLabel, QTreeView, QToolBar, QStyle, QAbstractItemView, 
+                             QApplication, QWidget, QVBoxLayout)
 from PyQt6.QtGui import (QFont, QAction, QIcon, QFileSystemModel, QKeySequence, 
                          QPainter, QPixmap, QColor)
 from PyQt6.QtCore import Qt, QSize, QDir
@@ -70,12 +71,35 @@ class MainWindowUiMixin:
 
         # --- Left Dock: Scope Manager ---
         self.scope_dock = QDockWidget("Active Scope", self)
+        
+        # Container for List + Toolbar
+        scope_container = QWidget()
+        scope_layout = QVBoxLayout(scope_container)
+        scope_layout.setContentsMargins(0, 0, 0, 0)
+        scope_layout.setSpacing(0)
+
+        # Scope Toolbar
+        self.scope_toolbar = QToolBar()
+        self.scope_toolbar.setIconSize(QSize(16, 16))
+        self.scope_toolbar.setStyleSheet("QToolBar { border: none; background: #21252b; }")
+        
+        # Clear Scope Action
+        act_clear_scope = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon), "Clear Scope", self)
+        act_clear_scope.setStatusTip("Remove all files from the active scope")
+        act_clear_scope.triggered.connect(self.on_clear_scope)
+        self.scope_toolbar.addAction(act_clear_scope)
+        
+        scope_layout.addWidget(self.scope_toolbar)
+
+        # Scope List
         self.scope_list = QListWidget()
         self.scope_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.scope_list.setToolTip("Files selected for Deep Logic analysis.\nDouble-click to remove.")
         self.scope_list.itemDoubleClicked.connect(lambda item: self.remove_from_scope(item.text()))
         
-        self.scope_dock.setWidget(self.scope_list)
+        scope_layout.addWidget(self.scope_list)
+        
+        self.scope_dock.setWidget(scope_container)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.scope_dock)
         
         self.tabifyDockWidget(self.explorer_dock, self.scope_dock)
@@ -116,9 +140,6 @@ class MainWindowUiMixin:
         file_menu.addAction(act_exit)
         
         view_menu = menubar.addMenu("&View")
-        # --- FIX ---
-        # Add the action returned by toggleViewAction() directly.
-        # The action's text will automatically match the dock's title.
         view_menu.addAction(self.explorer_dock.toggleViewAction())
         view_menu.addAction(self.graph_dock.toggleViewAction())
         view_menu.addAction(self.scope_dock.toggleViewAction())

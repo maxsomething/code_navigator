@@ -48,15 +48,6 @@ class MainWindow(QMainWindow, MainWindowUiMixin):
 
     # --- Core Application Logic ---
 
-    def on_chat_message(self, text, use_file, use_logic, use_scope):
-        self.chat_widget.append_message("You", text)
-        self.set_busy(True, "AI is thinking...", indeterminate=True)
-        
-        # Pass flags to worker
-        self.llm_worker = LLMWorker(self.llm, text, use_file, use_logic, use_scope)
-        self.llm_worker.response_received.connect(self.on_llm_response)
-        self.llm_worker.start()
-
     def on_open_project_dialog(self):
         path = QFileDialog.getExistingDirectory(self, "Select Project Root")
         if path:
@@ -209,6 +200,12 @@ class MainWindow(QMainWindow, MainWindowUiMixin):
         self.update_scope_display()
         self.status_label.setText(f"Removed {text} from Scope.")
 
+    def on_clear_scope(self):
+        """Clears the scope list and updates the UI."""
+        self.analyzer.clear_scope()
+        self.update_scope_display()
+        self.status_label.setText("Active Scope Cleared.")
+
     def update_scope_display(self):
         self.scope_list.clear()
         self.scope_list.addItems(sorted(self.analyzer.get_scope_list()))
@@ -225,10 +222,12 @@ class MainWindow(QMainWindow, MainWindowUiMixin):
                     self.recent_menu.addAction(act, lambda checked, p=path: self.load_project(p))
 
     # --- Chat ---
-    def on_chat_message(self, text):
+    def on_chat_message(self, text, use_file, use_logic, use_scope):
         self.chat_widget.append_message("You", text)
         self.set_busy(True, "AI is thinking...", indeterminate=True)
-        self.llm_worker = LLMWorker(self.llm, text)
+        
+        # Pass flags to worker
+        self.llm_worker = LLMWorker(self.llm, text, use_file, use_logic, use_scope)
         self.llm_worker.response_received.connect(self.on_llm_response)
         self.llm_worker.start()
 

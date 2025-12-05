@@ -125,14 +125,16 @@ class ProjectAnalyzer:
             with open(Config.OUTPUTS_DIR / "scope.txt", 'w', encoding='utf-8') as f: f.write("\n".join(sorted(list(current_scope))))
         return newly_added
 
+    def clear_scope(self):
+        """Clears the active scope file entirely."""
+        Config.OUTPUTS_DIR.mkdir(exist_ok=True)
+        with open(Config.OUTPUTS_DIR / "scope.txt", 'w', encoding='utf-8') as f:
+            f.write("")
+        self.logger.info("Scope cleared.")
+
     def extrapolate_dependencies(self, file_path: str) -> list[str]:
-        """
-        Finds all files connected to the given file in the logic graph.
-        Returns: [file_path] + [predecessors] + [successors]
-        """
         graph = None
-        
-        # 1. Attempt to use current graph if it looks like a Logic Graph
+        # Attempt to use current graph if it looks like a Logic Graph
         if self.current_graph and self.current_graph.number_of_edges() > 0:
             try:
                 sample_edge = list(self.current_graph.edges(data=True))[0]
@@ -141,7 +143,6 @@ class ProjectAnalyzer:
             except:
                 pass
 
-        # 2. If not, try loading the full logic graph from disk
         if graph is None:
             pkl_path = Config.GRAPHS_DIR / "logic_graph_full.pkl"
             if pkl_path.exists():
@@ -153,20 +154,15 @@ class ProjectAnalyzer:
                     self.logger.error(f"Extrapolation failed to load graph: {e}")
         
         if graph is None:
-            self.logger.warning("Extrapolation unavailable: No logic graph found.")
             return []
 
         if file_path not in graph:
-            self.logger.warning(f"Extrapolation failed: File {file_path} not in graph.")
             return []
 
-        # Collect dependencies
         up = list(graph.predecessors(file_path))
         down = list(graph.successors(file_path))
         
-        result = list(set(up + down + [file_path]))
-        self.logger.info(f"Extrapolated {file_path}: Found {len(up)} callers, {len(down)} callees.")
-        return result
+        return list(set(up + down + [file_path]))
 
     def get_all_project_files(self) -> list[str]:
         if self.file_metadata: 
