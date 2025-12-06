@@ -15,3 +15,4 @@ tree-sitter-lua
 tree-sitter-java
 tree-sitter-rust
 tree-sitter-javascript
+tree-sitter-elixir
