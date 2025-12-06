@@ -52,6 +52,8 @@ if TREE_SITTER_AVAILABLE:
     except ImportError: pass
     try: import tree_sitter_javascript; load_grammar('javascript', tree_sitter_javascript)
     except ImportError: pass
+    try: import tree_sitter_elixir; load_grammar('elixir', tree_sitter_elixir)
+    except ImportError: pass
 
 class PolyglotParser(BaseParser):
     EXTENSION_MAP = {
@@ -61,7 +63,8 @@ class PolyglotParser(BaseParser):
         '.lua': 'lua',
         '.java': 'java',
         '.rs': 'rust',
-        '.js': 'javascript', '.mjs': 'javascript', '.jsx': 'javascript'
+        '.js': 'javascript', '.mjs': 'javascript', '.jsx': 'javascript',
+        '.ex': 'elixir', '.exs': 'elixir'
     }
 
     def __init__(self):
@@ -116,6 +119,32 @@ class PolyglotParser(BaseParser):
                     (method_definition key: (_) @name_capture) @def
                 """,
                 'call': """(call_expression function: (identifier) @call_name)"""
+            },
+            'elixir': {
+                'import': """
+                    (call 
+                        target: (identifier) @keyword 
+                        (arguments (alias) @import)
+                        (#match? @keyword "^(alias|import|require|use)$"))
+                """,
+                'def': """
+                    (call 
+                        target: (identifier) @keyword 
+                        (arguments (alias) @name_capture) 
+                        (#eq? @keyword "defmodule")) @def
+                    (call 
+                        target: (identifier) @keyword 
+                        (arguments (call target: (identifier) @name_capture)) 
+                        (#match? @keyword "^(def|defp|defmacro)$")) @def
+                    (call 
+                        target: (identifier) @keyword 
+                        (arguments (identifier) @name_capture) 
+                        (#match? @keyword "^(def|defp|defmacro)$")) @def
+                """,
+                'call': """
+                    (call target: (identifier) @call_name)
+                    (call target: (dot left: (_) right: (identifier) @call_name))
+                """
             }
         }
 
@@ -214,43 +243,39 @@ class PolyglotParser(BaseParser):
                     q_def = Query(lang_obj, def_query_str)
                     captures = self._get_captures(q_def, tree.root_node)
                     
-                    # Logic: Identify definition blocks, then find the specific name within that block
+                    processed_nodes = set()
                     
-                    # 1. Identify unique definition blocks
-                    def_nodes = []
                     for node, name in captures:
-                        if name == 'def': 
-                            def_nodes.append(node)
-                    
-                    # 2. For each block, extract details
-                    for def_node in def_nodes:
-                        def_text = def_node.text.decode('utf8', errors='replace')
-                        def_name = "unknown"
-                        
-                        # Attempt to find the @name_capture within this node's range
-                        for sub_n, sub_name in captures:
-                            if sub_name == 'name_capture' and sub_n.start_byte >= def_node.start_byte and sub_n.end_byte <= def_node.end_byte:
-                                def_name = sub_n.text.decode('utf8', errors='replace')
-                                break
-                        
-                        # Fallback: if tree-sitter didn't capture the name node cleanly, use the first line of the block
-                        if def_name == "unknown":
-                            first_line = def_text.split('\n')[0].strip()
-                            def_name = first_line.split('(')[0].strip()[-40:] # Heuristic guess
+                        if name == 'def' and node.id not in processed_nodes:
+                            processed_nodes.add(node.id)
                             
-                        calls = []
-                        if call_query_str:
-                            calls = self._run_query(lang_obj, call_query_str, def_node, capture_name="call_name")
-                            calls = list(set(calls))
+                            def_text = node.text.decode('utf8')
+                            def_name = "unknown"
+                            
+                            # Attempt to find the @name_capture within this node's range
+                            for sub_n, sub_name in captures:
+                                if sub_name == 'name_capture' and sub_n.start_byte >= node.start_byte and sub_n.end_byte <= node.end_byte:
+                                    def_name = sub_n.text.decode('utf8')
+                                    break
+                            
+                            # Fallback if specific name capture failed
+                            if def_name == "unknown":
+                                first_line = def_text.split('\n')[0].strip()
+                                def_name = first_line.split('(')[0].strip()[-40:] 
+                            
+                            calls = []
+                            if call_query_str:
+                                calls = self._run_query(lang_obj, call_query_str, node, capture_name="call_name")
+                                calls = list(set(calls))
 
-                        definitions.append(Definition(
-                            name=def_name,
-                            type='function', 
-                            start_byte=def_node.start_byte,
-                            end_byte=def_node.end_byte,
-                            content=def_text,
-                            calls=calls
-                        ))
+                            definitions.append(Definition(
+                                name=def_name,
+                                type='function', 
+                                start_byte=node.start_byte,
+                                end_byte=node.end_byte,
+                                content=def_text,
+                                calls=calls
+                            ))
 
             return ParseResult(file_path, lang_id, definitions=definitions, imports=clean_imports, content=content_str)
         

@@ -25,8 +25,7 @@ class Config:
     
     # --- AI Settings ---
     OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
-    # --- MODIFIED: Changed the default model to deepseek-coder-v2:lite ---
-    MODEL_CHAT = os.getenv("OLLAMA_MODEL_CHAT", "deepseek-coder-v2:lite") 
+    MODEL_CHAT = os.getenv("OLLAMA_MODEL_CHAT", "mistral")
     EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME", "all-MiniLM-L6-v2")
     
     # --- Performance & Limits ---
@@ -40,7 +39,7 @@ class Config:
         'node_modules', 'venv', '.venv', 'env', 
         'dist', 'build', 'target', 'bin', 'obj',
         'vendor', 'third_party', 'cmake-build-debug',
-        '__pycache__'
+        '__pycache__', '_build', 'deps' # Added Elixir common dirs
     }
     
     # Extensions to analyze
@@ -50,16 +49,16 @@ class Config:
         '.js', '.ts', '.jsx', '.tsx', 
         '.java', '.kt', 
         '.rs', '.go', 
-        '.lua'
+        '.lua',
+        '.ex', '.exs' # Added Elixir
     }
 
     try:
         OLLAMA_NUM_GPU = int(os.getenv("OLLAMA_NUM_GPU", "0"))
-        # --- MODIFIED: Increased default context size to leverage the model's capabilities ---
-        OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "32768")) 
+        OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "4096"))
     except ValueError:
         OLLAMA_NUM_GPU = 0
-        OLLAMA_NUM_CTX = 32768
+        OLLAMA_NUM_CTX = 4096
 
     @classmethod
     def ensure_dirs(cls):
